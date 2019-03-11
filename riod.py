@@ -9,6 +9,7 @@
 # V1.1 02.02.2019 - First release
 # V1.2 28.02.2019 - Added activeZone to Source array
 # V1.3 09.03.2019 - Improve Config read
+# V1.4 09.03.2019 - Send command to russound
 
 
 import os
@@ -107,7 +108,7 @@ def set_keepalive(sock, after_idle_sec=10, interval_sec=3, max_fails=3):
 		', Interval (sec)=' + str(interval_sec) + ', MaxFail=' + str(max_fails))
 	
 def connectRussound(host, port):
-	global lastconnect, DeviceVersion, ZoneConfig, ZoneCount, ControllerType, SourceCount
+	global s, lastconnect, DeviceVersion, ZoneConfig, ZoneCount, ControllerType, SourceCount
 	#////// CONNECT //////////////////////////////////////////////////////
 	
 	connected=False
@@ -277,32 +278,32 @@ def readRussound(host, port, remoteTargets):
 
 							debugFunction(2, "ZONE: %s, Attr: %s, Current:%s" % ( res[2],res[3],json.dumps(source)))
 
-							if res[3] == "status":
+							# if res[3] == "status":
 			
-								if ZoneConfig[res[1]][res[2]]["status"] == "ON" and res[4] == "OFF":
-									try:
-										SourceConfig[source]["activeZones"] -=1
-									except:
-										SourceConfig[source]["activeZones"] =0
+								# if ZoneConfig[res[1]][res[2]]["status"] == "ON" and res[4] == "OFF":
+									# try:
+										# SourceConfig[source]["activeZones"] -=1
+									# except:
+										# SourceConfig[source]["activeZones"] =0
 										
-								elif ZoneConfig[res[1]][res[2]]["status"] == "OFF" and res[4] == "ON":
-									try:
-										SourceConfig[source]["activeZones"] +=1
-									except:
-										SourceConfig[source]["activeZones"] = 1
+								# elif ZoneConfig[res[1]][res[2]]["status"] == "OFF" and res[4] == "ON":
+									# try:
+										# SourceConfig[source]["activeZones"] +=1
+									# except:
+										# SourceConfig[source]["activeZones"] = 1
 							
-							elif res[3] == "currentSource":
+							# elif res[3] == "currentSource":
 
-								if ZoneConfig[res[1]][res[2]]["status"] == "ON":
-									try:
-										SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] -=1
-									except:
-										SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] = 0
+								# if ZoneConfig[res[1]][res[2]]["status"] == "ON":
+									# try:
+										# SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] -=1
+									# except:
+										# SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] = 0
 									
-									try:
-										SourceConfig[res[4]]["activeZones"] +=1
-									except:
-										SourceConfig[res[4]]["activeZones"] = 1
+									# try:
+										# SourceConfig[res[4]]["activeZones"] +=1
+									# except:
+										# SourceConfig[res[4]]["activeZones"] = 1
 
 							ZoneConfig[res[1]][res[2]][res[3]]=res[4]
 							debugFunction(1, "ZONE: " + line)
@@ -335,9 +336,77 @@ def readRussound(host, port, remoteTargets):
 		except Exception as err:
 			ConnectErrorDate=datetime.datetime.now()
 			debugFunction(0, "EXCEPTION: " + str(err))
-			s=connectRussound()
+			s=connectRussound(host, port)
 
 	s.close()
+	
+def sendCommand(cmd):
+	global s
+	s.send(cmd.encode())
+	debugFunction(0, "checkCommand: " + cmd)
+
+def checkCommand(cmdline):
+	global s, ZoneConfig, SourceConfig
+	
+	result=dict(re.findall('(\w+)=(\w+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
+	debugFunction(1, json.dumps(result))
+
+	try:
+		action=result["action"]
+		zone=result["zone"]
+		try:
+			c=result["controller"]
+		except:
+			c=1
+
+		if action == "1" or  action== "on":
+			try:
+				source=result["source"]
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
+			except:
+				'EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOn\r'
+
+		elif action== "source":
+			try:
+				source=result["source"]
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
+			except:
+				None
+
+		elif action == "0" or  action== "off":
+			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOff\r'
+			
+		elif action== "volume":
+			volume=result["volume"]
+			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress Volume ' + volume + '\r'
+
+		elif action== "turnonvolume":
+			attr=result["volume"]
+			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
+
+		elif action== "bass":
+			attr=result["bass"]
+			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
+
+		elif action== "balance":
+			attr=result["balance"]
+			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
+
+		elif action== "treble":
+			attr=result["treble"]
+			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
+
+			
+		else:
+			return 401
+	
+		sendCommand(cmd)
+		return 200
+
+	except Exception as err:
+		debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
+		return 401
+	
 
 def ws():
 	global lastconnect, ZoneConfig, SourceConfig, DeviceVersion, DeviceStatus, SourceCount, LastRead,\
@@ -357,58 +426,66 @@ def ws():
 		request = client_connection.recv(1024).decode('utf-8', 'ignore')
 		now = datetime.datetime.now()
 		
-		result=""
+		debugFunction(1, request)
 		if re.search(r'^GET /(\w*) HTTP', request, 0):  
-			res=re.split(r'^GET /(\w*) HTTP', request, 0);
+			res=re.split(r'^GET /(\w*) HTTP', request, 0)
 			result=res[1].lower()
 		
-		http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
-		if result == 'zoneconfig':
-			http_response += json.dumps(ZoneConfig)
+			http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
+			if result == 'zoneconfig':
+				http_response += json.dumps(ZoneConfig)
 
-		elif result == 'sourceconfig':
-			http_response += json.dumps(SourceConfig)
+			elif result == 'sourceconfig':
+				http_response += json.dumps(SourceConfig)
 
-		elif result == 'channels':
-			http_response += json.dumps(Channels)
+			elif result == 'channels':
+				http_response += json.dumps(Channels)
 
-		elif result == 'defaultchannels':
-			http_response += json.dumps(DefChannel)
+			elif result == 'defaultchannels':
+				http_response += json.dumps(DefChannel)
 
-		elif result == 'status':
-			http_response += \
-				'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-				', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-				', "ZoneCount": ' + json.dumps(ZoneCount) + \
-				', "ControllerType": ' + json.dumps(ControllerType) + \
-				', "CountSource": ' + json.dumps(SourceCount) + \
-				', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
-				', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
-				', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
-				', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
-				', "LastRead": ' + json.dumps(LastRead) + \
-				', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-				'}'
+			elif result == 'status':
+				http_response += \
+					'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+					', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+					', "ZoneCount": ' + json.dumps(ZoneCount) + \
+					', "ControllerType": ' + json.dumps(ControllerType) + \
+					', "CountSource": ' + json.dumps(SourceCount) + \
+					', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
+					', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
+					', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
+					', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
+					', "LastRead": ' + json.dumps(LastRead) + \
+					', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+					'}'
 
-		else:
-			http_response += \
-				'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
-				', "SourceConfig": ' + json.dumps(SourceConfig) + \
-				', "Channels": ' + json.dumps(Channels) + \
-				', "DefaultChannel": ' + json.dumps(DefChannel) + \
-				', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-				', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-				', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-				', "CountSource": ' + json.dumps(SourceCount) + \
-				'}'
-		client_connection.sendall(http_response.encode())
-		client_connection.close()
+			else:
+				http_response += \
+					'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
+					', "SourceConfig": ' + json.dumps(SourceConfig) + \
+					', "Channels": ' + json.dumps(Channels) + \
+					', "DefaultChannel": ' + json.dumps(DefChannel) + \
+					', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+					', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+					', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+					', "CountSource": ' + json.dumps(SourceCount) + \
+					'}'
+			client_connection.sendall(http_response.encode())
+			client_connection.close()
+			
+		elif re.search(r'^GET /cmd\?(.*) HTTP', request, 0): #GET /cmd?zone=1&source=1?status=1
+			res=re.split(r'^GET /cmd\?(.*) HTTP', request, 0); 
+			rc=checkCommand(res[1])
+			http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n'
+			client_connection.sendall(http_response.encode())
+			client_connection.close()
+
 		
 def main(argv):
 	global host, wport, port, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, ignoresources, ignorezones
