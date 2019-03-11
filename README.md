@@ -5,22 +5,22 @@ It allows to control the russound as well:
 
 Example: http://<IP Webserver>:<port>/cmd?action=on&zone=1&source=2
 
-action:
-	On - zone power on : zone, source
-	Off - zone power off : zone
-	source - set source of zone : zone, source
-	volume - set volume of zone : zone, volume
-	bass - set bass of zone : zone, bass
-	treble - set treble of zone : zone, treble
-	balance - set bass of zone : zone, balance
-	turnOnVolume - set turnOnVolume to volume for zone
-
-Parameter:
-zone: Zone number e.g. 1 or 1,4,5 etc...
-controller: Controller number e.g. 1 ( default is 1)
-volume: Volume for announcements and for fade-in (1..50)
-source: set zone to source number
-bass: bass value to be send -10 to 10
-treble: treble to be send -10 to 10
-balance: Balance -10 to 10
+action:<br>
+	On - zone power on : zone, source<br>
+	Off - zone power off : zone<br>
+	source - set source of zone : zone, source<br>
+	volume - set volume of zone : zone, volume<br>
+	bass - set bass of zone : zone, bass<br>
+	treble - set treble of zone : zone, treble<br>
+	balance - set bass of zone : zone, balance<br>
+	turnOnVolume - set turnOnVolume to volume for zone<br>
+<br>
+Parameter:<br>
+zone: Zone number e.g. 1 or 1,4,5 etc...<br>
+controller: Controller number e.g. 1 ( default is 1)<br>
+volume: Volume for announcements and for fade-in (1..50)<br>
+source: set zone to source number<br>
+bass: bass value to be send -10 to 10<br>
+treble: treble to be send -10 to 10<br>
+balance: Balance -10 to 10<br>
 
