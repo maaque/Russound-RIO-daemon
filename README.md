@@ -6,7 +6,8 @@ It allows to control the russound as well:
 
 Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
 
-Webbrowser works ok, if you are using curl, it looks curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
+Webbrowser works ok, if you would like to use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
+
 action:<br>
 	On - zone power on : zone, source<br>
 	Off - zone power off : zone<br>
