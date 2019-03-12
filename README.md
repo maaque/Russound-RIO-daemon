@@ -3,8 +3,10 @@ The purpose of riod.py to permanelty run as a daemon on a unix hosts, e.g. raspb
 It always able to provide the current configuration via built in Web Service and could send update to specific hosts via TCP and UPD and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88
 It allows to control the russound as well:
 
-Example: http://<IP Webserver>:<port>/cmd?action=on&zone=1&source=2
 
+Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
+
+Webbrowser works ok, if you are using curl, it looks curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
 action:<br>
 	On - zone power on : zone, source<br>
 	Off - zone power off : zone<br>
