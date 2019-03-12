@@ -18,6 +18,7 @@ import sys
 import configparser
 import optparse
 import time
+import string
 import re
 import datetime
 import threading
@@ -35,7 +36,7 @@ SourceConfig=defaultdict(dict)
 ZoneCount=defaultdict(dict)
 ControllerType=defaultdict(dict)
 
-#//// SETTINGS oF Russound Device ////
+#//// Init section ////
 debugLevel=0
 debugTarget=0
 ConvertErrorStr=""
@@ -47,7 +48,8 @@ TimebetweenRead=LastReadDateTime-LastReadDateTime
 MaxTimeReadDiff=TimebetweenRead
 MaxTimeReadDiffDate=LastReadDateTime
 
-DefChannel = 'SWR3'
+digits = [ "DigitZero", "DigitOne", "DigitTwo", "DigitThree", "DigitFour", "DigitFive",
+			"DigitSix", "DigitSeven", "DigitEight", "DigitNine" ]
 
 def debugFunction(level, msg):
 	global debugLevel, debugTarget
@@ -348,7 +350,7 @@ def sendCommand(cmd):
 def checkCommand(cmdline):
 	global s, ZoneConfig, SourceConfig
 	
-	result=dict(re.findall('(\w+)=(\w+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
+	result=dict(re.findall('(\w+)=([\w.]+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
 	debugFunction(1, json.dumps(result))
 
 	try:
@@ -364,8 +366,11 @@ def checkCommand(cmdline):
 				source=result["source"]
 				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
 			except:
-				'EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOn\r'
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOn\r'
 
+		elif action == "0" or  action== "off":
+			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOff\r'
+			
 		elif action== "source":
 			try:
 				source=result["source"]
@@ -373,9 +378,25 @@ def checkCommand(cmdline):
 			except:
 				None
 
-		elif action == "0" or  action== "off":
-			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOff\r'
-			
+		elif action== "play":
+			try:
+				source=result["source"]
+				try: 
+					frequency=result["frequency"]
+				except:
+					None
+				freq_array = ''.join(i for i in frequency if i not in string.punctuation)
+				print("ARRAY: " + freq_array)
+				for i in freq_array :
+					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease ' + digits[int(i)] + '\r'
+					sendCommand(cmd)
+
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease Enter\r'
+	
+			except Exception as err:
+				debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
+				return 401
+
 		elif action== "volume":
 			volume=result["volume"]
 			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress Volume ' + volume + '\r'
@@ -411,7 +432,7 @@ def checkCommand(cmdline):
 def ws():
 	global lastconnect, ZoneConfig, SourceConfig, DeviceVersion, DeviceStatus, SourceCount, LastRead,\
 	LastReadDateTime, MaxTimeReadDiffDate, TimebetweenRead, MaxTimeReadDiff, ConvertErrorStr, ConvertErrorHex,\
-	ConvertErrorDateTime, ConnectErrorDate
+	ConvertErrorDateTime, ConnectErrorDate, Defchannel
 	HOST = ''
 
 	listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -488,7 +509,7 @@ def ws():
 
 		
 def main(argv):
-	global host, wport, port, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, ignoresources, ignorezones
+	global host, wport, port, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, DefChannel, ignoresources, ignorezones
 	
 	config = configparser.ConfigParser()
 	config.optionxform = str
@@ -503,6 +524,11 @@ def main(argv):
 		Channels=dict(config.items('Channels'))
 	except:
 		Channels=[]
+		
+	try:
+		DefChannel = config.get("FavouriteChannels","Fav1")
+	except:
+		DefChannel = ""
 			
 	try:
 		ignoresources=config.get("Common","IgnoreSources").split(',')
