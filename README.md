@@ -1,6 +1,8 @@
 # Russound-RIO-daemon
 The purpose of riod.py to permanelty run as a daemon on a unix hosts, e.g. raspberry and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88.
-It always able to provide the current configuration via built in Web Service and could send update to specific hosts via TCP and UPD and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88
+It always able to provide the current configuration via built in Web Service and could send update to specific hosts via TCP and UPD and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88.
+It has been only tested with python3. 
+<br>
 It allows to control the russound as well:
 
 
@@ -26,4 +28,10 @@ source: set zone to source number<br>
 bass: bass value to be send -10 to 10<br>
 treble: treble to be send -10 to 10<br>
 balance: Balance -10 to 10<br>
+
+The easiest way to run the script at startup:
+1. cp systemd/riod.service /lib/systemd/system/riod.service
+2. sudo systemctl daemon-reload
+3. sudo systemctl enable riod.service
+4. sudo systemctl start riod.service
 
