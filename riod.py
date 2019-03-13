@@ -6,10 +6,11 @@
 # and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88
 # Location of riod.ini could be: current dir, /etc or /usr/local/etc
 #
-# V1.1 02.02.2019 - First release
-# V1.2 28.02.2019 - Added activeZone to Source array
-# V1.3 09.03.2019 - Improve Config read
-# V1.4 09.03.2019 - Send command to russound
+# V1.1   02.02.2019 - First release
+# V1.2   28.02.2019 - Added activeZone to Source array
+# V1.3   09.03.2019 - Improve Config read
+# V1.4   09.03.2019 - Send command to russound
+# V1.4.1 13.03.2019 - Send command to russound
 
 
 import os
@@ -513,7 +514,8 @@ def main(argv):
 	
 	config = configparser.ConfigParser()
 	config.optionxform = str
-	config.read(['riod.ini', '/etc/riod.ini', '/usr/local/etc/riod.ini'])
+	config.read([os.path.dirname(os.path.realpath(__file__)) + '/riod.ini', '/etc/riod.ini', '/usr/local/etc/riod.ini'])
+
 	try:
 		remoteTargets=dict(config.items('RemoteTargets'))
 		debugFunction(2, "remoteTargets: " + json.dumps(remoteTargets))
