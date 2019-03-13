@@ -12,6 +12,7 @@ Webbrowser works ok, if you would like to use curl: curl "http://127.0.0.1:8080/
 
 action:<br>
 	On - zone power on : zone, source<br>
+	play - play a source and specific channel : zone, source, channel<br>
 	Off - zone power off : zone<br>
 	source - set source of zone : zone, source<br>
 	volume - set volume of zone : zone, volume<br>
@@ -28,6 +29,7 @@ source: set zone to source number<br>
 bass: bass value to be send -10 to 10<br>
 treble: treble to be send -10 to 10<br>
 balance: Balance -10 to 10<br>
+channel: Radio Channel, defined in riod.ini, to be changed to
 
 The easiest way to run the script at startup:
 1. cp systemd/riod.service /lib/systemd/system/riod.service

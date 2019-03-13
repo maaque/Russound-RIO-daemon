@@ -10,7 +10,7 @@
 # V1.2   28.02.2019 - Added activeZone to Source array
 # V1.3   09.03.2019 - Improve Config read
 # V1.4   09.03.2019 - Send command to russound
-# V1.4.1 13.03.2019 - Send command to russound
+# V1.4.1 13.03.2019 - Bugfix ini file location
 
 
 import os
@@ -346,10 +346,10 @@ def readRussound(host, port, remoteTargets):
 def sendCommand(cmd):
 	global s
 	s.send(cmd.encode())
-	debugFunction(0, "checkCommand: " + cmd)
+	debugFunction(0, "sendCommand: " + cmd)
 
 def checkCommand(cmdline):
-	global s, ZoneConfig, SourceConfig
+	global s, ZoneConfig, SourceConfig, Channels
 	
 	result=dict(re.findall('(\w+)=([\w.]+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
 	debugFunction(1, json.dumps(result))
@@ -377,17 +377,21 @@ def checkCommand(cmdline):
 				source=result["source"]
 				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
 			except:
-				None
+				pass
 
 		elif action== "play":
 			try:
 				source=result["source"]
 				try: 
-					frequency=result["frequency"]
+					frequency=result["channel"]
+					try:
+						frequency=Channels[frequency]
+					except:
+						pass
+					freq_array = ''.join(i for i in frequency if i not in string.punctuation)
 				except:
-					None
-				freq_array = ''.join(i for i in frequency if i not in string.punctuation)
-				print("ARRAY: " + freq_array)
+					pass
+				
 				for i in freq_array :
 					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease ' + digits[int(i)] + '\r'
 					sendCommand(cmd)
