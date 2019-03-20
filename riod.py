@@ -11,10 +11,11 @@
 # V1.3   09.03.2019 - Improve Config read
 # V1.4   09.03.2019 - Send command to russound
 # V1.4.1 13.03.2019 - Bugfix ini file location
-
+# V1.5   19.03.2019 - Add ssl support
 
 import os
 import socket
+import ssl
 import sys
 import configparser
 import optparse
@@ -49,11 +50,7 @@ TimebetweenRead=LastReadDateTime-LastReadDateTime
 MaxTimeReadDiff=TimebetweenRead
 MaxTimeReadDiffDate=LastReadDateTime
 
-digits = [ "DigitZero", "DigitOne", "DigitTwo", "DigitThree", "DigitFour", "DigitFive",
-			"DigitSix", "DigitSeven", "DigitEight", "DigitNine" ]
-
 def debugFunction(level, msg):
-	global debugLevel, debugTarget
 
 	if debugTarget == 1:
 		if level <= debugLevel:
@@ -222,8 +219,6 @@ def checkCharSet(byteStr):
 	return byteStr
 
 def countActiveSources():
-	global ZoneConfig, SourceConfig
-	
 	for s in SourceConfig:
 		SourceConfig[s]["activeZones"]=0
 
@@ -235,7 +230,7 @@ def countActiveSources():
 				SourceConfig[source]["activeZones"] +=1
 	
 def readRussound(host, port, remoteTargets):
-	global DeviceStatus, ZoneConfig, SourceConfig, LastRead, LastReadDateTime, TimebetweenRead,\
+	global DeviceStatus, LastRead, LastReadDateTime, TimebetweenRead,\
 		MaxTimeReadDiff, MaxTimeReadDiffDate, ConvertErrorStr, ConvertErrorHex, ConvertErrorDateTime, ConnectErrorDate
 
 	# Initial connect
@@ -344,12 +339,12 @@ def readRussound(host, port, remoteTargets):
 	s.close()
 	
 def sendCommand(cmd):
-	global s
 	s.send(cmd.encode())
 	debugFunction(0, "sendCommand: " + cmd)
 
 def checkCommand(cmdline):
-	global s, ZoneConfig, SourceConfig, Channels
+	digits = [ "DigitZero", "DigitOne", "DigitTwo", "DigitThree", "DigitFour", "DigitFive",
+			"DigitSix", "DigitSeven", "DigitEight", "DigitNine" ]
 	
 	result=dict(re.findall('(\w+)=([\w.]+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
 	debugFunction(1, json.dumps(result))
@@ -422,7 +417,6 @@ def checkCommand(cmdline):
 			attr=result["treble"]
 			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
 
-			
 		else:
 			return 401
 	
@@ -434,87 +428,113 @@ def checkCommand(cmdline):
 		return 401
 	
 
-def ws():
-	global lastconnect, ZoneConfig, SourceConfig, DeviceVersion, DeviceStatus, SourceCount, LastRead,\
-	LastReadDateTime, MaxTimeReadDiffDate, TimebetweenRead, MaxTimeReadDiff, ConvertErrorStr, ConvertErrorHex,\
-	ConvertErrorDateTime, ConnectErrorDate, Defchannel
-	HOST = ''
-
-	listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-	listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	listen_socket.bind((HOST, wport))
-	listen_socket.listen(1)
-	debugFunction (2, 'Serving HTTP on port %s ...' % wport)
-	startdate=datetime.datetime.now()
+def ws(usessl, wport):
 	
+	client_connection=None
+
 	while True:
-		client_connection, client_address = listen_socket.accept()
-		request = client_connection.recv(1024).decode('utf-8', 'ignore')
-		now = datetime.datetime.now()
+
+		if not client_connection:
+			HOST = ''
+			listen_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+			listen_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+			listen_socket.bind((HOST, wport))
+			listen_socket.listen(1)
+
+			if usessl:
+				context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+				context.load_cert_chain(certfile=certificatefile)  
+				context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1  # optional
+				context.set_ciphers('EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH')
+
+			debugFunction (0, 'Serving HTTP on port ' + str(wport) + ', SSL is ' + str(usessl))
+			startdate=datetime.datetime.now()
+
+		conn, client_address = listen_socket.accept()
+		if usessl:
+			try:
+				client_connection = context.wrap_socket(conn, server_side=True)
+			except Exception as e:
+				conn.close()
+				client_connection=None
+				debugFunction(0, "SSL-Error: "+ str(e))
+
+		else:
+			client_connection=conn
 		
-		debugFunction(1, request)
-		if re.search(r'^GET /(\w*) HTTP', request, 0):  
-			res=re.split(r'^GET /(\w*) HTTP', request, 0)
-			result=res[1].lower()
-		
-			http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
-			if result == 'zoneconfig':
-				http_response += json.dumps(ZoneConfig)
-
-			elif result == 'sourceconfig':
-				http_response += json.dumps(SourceConfig)
-
-			elif result == 'channels':
-				http_response += json.dumps(Channels)
-
-			elif result == 'defaultchannels':
-				http_response += json.dumps(DefChannel)
-
-			elif result == 'status':
-				http_response += \
-					'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-					', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-					', "ZoneCount": ' + json.dumps(ZoneCount) + \
-					', "ControllerType": ' + json.dumps(ControllerType) + \
-					', "CountSource": ' + json.dumps(SourceCount) + \
-					', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
-					', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
-					', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
-					', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
-					', "LastRead": ' + json.dumps(LastRead) + \
-					', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-					'}'
-
-			else:
-				http_response += \
-					'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
-					', "SourceConfig": ' + json.dumps(SourceConfig) + \
-					', "Channels": ' + json.dumps(Channels) + \
-					', "DefaultChannel": ' + json.dumps(DefChannel) + \
-					', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-					', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-					', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-					', "CountSource": ' + json.dumps(SourceCount) + \
-					'}'
-			client_connection.sendall(http_response.encode())
-			client_connection.close()
+		try:
 			
-		elif re.search(r'^GET /cmd\?(.*) HTTP', request, 0): #GET /cmd?zone=1&source=1?status=1
-			res=re.split(r'^GET /cmd\?(.*) HTTP', request, 0); 
-			rc=checkCommand(res[1])
-			http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n'
-			client_connection.sendall(http_response.encode())
-			client_connection.close()
+			request = client_connection.recv(1024).decode('utf-8', 'ignore')
+			now = datetime.datetime.now()
+			
+			debugFunction(1, request)
+			if re.search(r'^GET /(\w*) HTTP', request, 0):  
+				res=re.split(r'^GET /(\w*) HTTP', request, 0)
+				result=res[1].lower()
+			
+				http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
+				if result == 'zoneconfig':
+					http_response += json.dumps(ZoneConfig)
+
+				elif result == 'sourceconfig':
+					http_response += json.dumps(SourceConfig)
+
+				elif result == 'channels':
+					http_response += json.dumps(Channels)
+
+				elif result == 'defaultchannels':
+					http_response += json.dumps(DefChannel)
+
+				elif result == 'status':
+					http_response += \
+						'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+						', "ZoneCount": ' + json.dumps(ZoneCount) + \
+						', "ControllerType": ' + json.dumps(ControllerType) + \
+						', "CountSource": ' + json.dumps(SourceCount) + \
+						', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
+						', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
+						', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
+						', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
+						', "LastRead": ' + json.dumps(LastRead) + \
+						', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+						'}'
+
+				else:
+					http_response += \
+						'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
+						', "SourceConfig": ' + json.dumps(SourceConfig) + \
+						', "Channels": ' + json.dumps(Channels) + \
+						', "DefaultChannel": ' + json.dumps(DefChannel) + \
+						', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+						', "CountSource": ' + json.dumps(SourceCount) + \
+						'}'
+				client_connection.sendall(http_response.encode())
+				client_connection.close()
+				client_connection=None
+				
+			elif re.search(r'^GET /cmd\?(.*) HTTP', request, 0): #GET /cmd?zone=1&source=1?status=1
+				res=re.split(r'^GET /cmd\?(.*) HTTP', request, 0); 
+				rc=checkCommand(res[1])
+				http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n'
+				client_connection.sendall(http_response.encode())
+				client_connection.close()
+				client_connection=None
+		except Exception as e:
+			debugFunction(0, "Error: "+ str(e))
+			client_connection=None
 
 		
 def main(argv):
-	global host, wport, port, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, DefChannel, ignoresources, ignorezones
+	global host, wport, port, SSLPort, usessl, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, DefChannel, ignoresources, ignorezones, certificatefile
 	
 	config = configparser.ConfigParser()
 	config.optionxform = str
@@ -551,11 +571,26 @@ def main(argv):
 		ignorezones=[]
 	debugFunction(2, "IgnoreZones: " + json.dumps(ignorezones))
 
-	
 	try:
 		macAddr=config.get("Common","MAC")
 	except:
 		maxAddr=None
+	
+	try:
+		usessl=int(config.get("Webserver","EnableSSL"))
+	except:
+		usessl=0
+		
+	try:
+		certificatefile=config.get("Webserver","Certificate")
+	except:
+		usessl=0
+		debugFunction(0, "Certificate file is missing in ini - fallback to http")
+	try:
+		SSLPort=int(config.get("Webserver","SSLPort"))
+	except:
+		usessl=0
+		debugFunction(0, "SSL port missing in ini - fallback to http")
 	
 
 	controllers=config.get("Common","Controllers").split(',')	
@@ -586,9 +621,18 @@ def main(argv):
 		action="store",
 		type="int",
 	)
+	parser.add_option('--sslport',
+		dest="sslport",
+		action="store",
+		type="int",
+	)
 	parser.add_option('-p', '--port',
 		dest="port",
-		default=9621,
+		action="store",
+		type="int",
+	)
+	parser.add_option('-s', '--usessl',
+		dest="usessl",
 		action="store",
 		type="int",
 	)
@@ -608,7 +652,11 @@ def main(argv):
 		macAddr=options.mac
 	if options.port is not None:
 		port=options.port
-		
+	if options.sslport is not None:
+		SSLPort=options.sslport
+	if options.usessl is not None:
+		usessl=options.usessl
+
 	if controllers is None:
 		controllers=["1"]
 		
@@ -625,9 +673,14 @@ def main(argv):
 
 	debugLevel=options.debugLevel
 	debugTarget=options.debugTarget
-	
+
 	debugFunction(1, "Russound address: " + host + ", Port: " + str(port))
 	debugFunction(1, "Webserver Port: " + str(wport))
+	debugFunction(1, "SSL: " + str(usessl))
+
+	if usessl:
+		debugFunction(1, "SSL Webserver Port: " + str(SSLPort))
+		debugFunction(1, "Certificate: " + certificatefile)
 	debugFunction(1, "Controller : " + json.dumps(controllers))
 
 	debugFunction(1, "IgnoreZone : " + json.dumps(ignorezones))
@@ -637,14 +690,20 @@ def main(argv):
 	
 if __name__ == "__main__":
 	main(sys.argv[1:])
-	
-t1 = threading.Thread(target=ws)
-t2 = threading.Thread(target=readRussound, args=(host, port, remoteTargets))
-t2.daemon = True
-t1.daemon = True  
+
+t1 = threading.Thread(target=readRussound, args=(host, port, remoteTargets))
+t2 = threading.Thread(target=ws, args=(0, wport))
+
+t1.daemon = True
 t1.start()
+t2.daemon = True
 t2.start()
 
-t1.join()
+if usessl:
+	t3 = threading.Thread(target=ws, args=(1, SSLPort))
+	t3.start()
+	t3.join()
+	
 t2.join()
-		
+t1.join()
+
