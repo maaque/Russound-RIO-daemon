@@ -488,7 +488,7 @@ def ws(usessl, wport):
 
 				elif result == 'status':
 					http_response += \
-						'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						'{ "Web-Service (Re)StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
