@@ -230,7 +230,7 @@ def countActiveSources():
 			if ZoneConfig[controller][zone]["status"] == "ON":
 				SourceConfig[source]["activeZones"] +=1
 	
-def readRussound(host, port, remoteTargets):
+def watchRussound(host, port, remoteTargets):
 	global DeviceStatus, LastRead, LastReadDateTime, TimebetweenRead,\
 		MaxTimeReadDiff, MaxTimeReadDiffDate, ConvertErrorStr, ConvertErrorHex, ConvertErrorDateTime, ConnectErrorDate
 
@@ -429,9 +429,10 @@ def checkCommand(cmdline):
 		return 401
 	
 
-def ws(usessl, wport):
+def WebService(usessl, wport):
 	
 	client_connection=None
+	startdate=datetime.datetime.now()
 
 	while True:
 
@@ -449,7 +450,6 @@ def ws(usessl, wport):
 				context.set_ciphers('EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH')
 
 			debugFunction (0, 'Serving HTTP on port ' + str(wport) + ', SSL is ' + str(usessl))
-			startdate=datetime.datetime.now()
 
 		conn, client_address = listen_socket.accept()
 		if usessl:
@@ -692,8 +692,8 @@ def main(argv):
 if __name__ == "__main__":
 	main(sys.argv[1:])
 
-t1 = threading.Thread(target=readRussound, args=(host, port, remoteTargets))
-t2 = threading.Thread(target=ws, args=(0, wport))
+t1 = threading.Thread(target=watchRussound, args=(host, port, remoteTargets))
+t2 = threading.Thread(target=WebService, args=(0, wport))
 
 t1.daemon = True
 t1.start()
@@ -701,7 +701,7 @@ t2.daemon = True
 t2.start()
 
 if usessl:
-	t3 = threading.Thread(target=ws, args=(1, SSLPort))
+	t3 = threading.Thread(target=WebService, args=(1, SSLPort))
 	t3.start()
 	t3.join()
 	
