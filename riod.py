@@ -12,6 +12,7 @@
 # V1.4   09.03.2019 - Send command to russound
 # V1.4.1 13.03.2019 - Bugfix ini file location
 # V1.5   19.03.2019 - Add ssl support
+# V1.5.1 07.04.2019 - Change STatus output
 
 import os
 import socket
@@ -511,7 +512,7 @@ def ws(usessl, wport):
 						', "SourceConfig": ' + json.dumps(SourceConfig) + \
 						', "Channels": ' + json.dumps(Channels) + \
 						', "DefaultChannel": ' + json.dumps(DefChannel) + \
-						', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "Web-StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
 						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
@@ -524,7 +525,7 @@ def ws(usessl, wport):
 			elif re.search(r'^GET /cmd\?(.*) HTTP', request, 0): #GET /cmd?zone=1&source=1?status=1
 				res=re.split(r'^GET /cmd\?(.*) HTTP', request, 0); 
 				rc=checkCommand(res[1])
-				http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n'
+				http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
 				client_connection.sendall(http_response.encode())
 				client_connection.close()
 				client_connection=None
