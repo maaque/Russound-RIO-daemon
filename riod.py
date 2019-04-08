@@ -432,7 +432,6 @@ def checkCommand(cmdline):
 def WebService(usessl, wport):
 	
 	client_connection=None
-	startdate=datetime.datetime.now()
 
 	while True:
 
@@ -488,7 +487,7 @@ def WebService(usessl, wport):
 
 				elif result == 'status':
 					http_response += \
-						'{ "Web-Service (Re)StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
@@ -512,7 +511,7 @@ def WebService(usessl, wport):
 						', "SourceConfig": ' + json.dumps(SourceConfig) + \
 						', "Channels": ' + json.dumps(Channels) + \
 						', "DefaultChannel": ' + json.dumps(DefChannel) + \
-						', "Web-StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+						', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
 						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
@@ -695,6 +694,8 @@ if __name__ == "__main__":
 t1 = threading.Thread(target=watchRussound, args=(host, port, remoteTargets))
 t2 = threading.Thread(target=WebService, args=(0, wport))
 
+startdate=datetime.datetime.now()
+	
 t1.daemon = True
 t1.start()
 t2.daemon = True
