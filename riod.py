@@ -12,7 +12,7 @@
 # V1.4   09.03.2019 - Send command to russound
 # V1.4.1 13.03.2019 - Bugfix ini file location
 # V1.5   19.03.2019 - Add ssl support
-# V1.5.1 07.04.2019 - Change STatus output
+# V1.5.1 07.04.2019 - Change Status output
 
 import os
 import socket
@@ -468,9 +468,12 @@ def WebService(usessl, wport):
 			now = datetime.datetime.now()
 			
 			debugFunction(1, request)
-			if re.search(r'^GET /(\w*) HTTP', request, 0):  
-				res=re.split(r'^GET /(\w*) HTTP', request, 0)
+			if re.search(r'^GET /(.*) HTTP', request, 0):  
+				res=re.split(r'^GET /(.*) HTTP', request, 0)
 				result=res[1].lower()
+				
+				debugFunction(1, "Result: " + result)
+
 			
 				http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
 				if result == 'zoneconfig':
@@ -485,7 +488,7 @@ def WebService(usessl, wport):
 				elif result == 'defaultchannels':
 					http_response += json.dumps(DefChannel)
 
-				elif result == 'status':
+				elif re.search(r'status.*', result, 0):
 					http_response += \
 						'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
 						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
@@ -505,6 +508,11 @@ def WebService(usessl, wport):
 						', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
 						'}'
 
+				elif re.search(r'^cmd\?(.*)', result, 0): #GET /cmd?zone=1&source=1?status=1
+					res=re.split(r'^cmd\?(.*)', result, 0); 
+					rc=checkCommand(res[1])
+					http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
+
 				else:
 					http_response += \
 						'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
@@ -517,17 +525,15 @@ def WebService(usessl, wport):
 						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
 						', "CountSource": ' + json.dumps(SourceCount) + \
 						'}'
-				client_connection.sendall(http_response.encode())
-				client_connection.close()
-				client_connection=None
+
+			else:
+				http_response += 'Illegal Reuest'
+			
+			client_connection.sendall(http_response.encode())
+			client_connection.close()
+			client_connection=None
+
 				
-			elif re.search(r'^GET /cmd\?(.*) HTTP', request, 0): #GET /cmd?zone=1&source=1?status=1
-				res=re.split(r'^GET /cmd\?(.*) HTTP', request, 0); 
-				rc=checkCommand(res[1])
-				http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
-				client_connection.sendall(http_response.encode())
-				client_connection.close()
-				client_connection=None
 		except Exception as e:
 			debugFunction(0, "Error: "+ str(e))
 			client_connection=None
