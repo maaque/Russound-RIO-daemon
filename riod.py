@@ -13,6 +13,7 @@
 # V1.4.1 13.03.2019 - Bugfix ini file location
 # V1.5   19.03.2019 - Add ssl support
 # V1.5.1 07.04.2019 - Change Status output
+# V1.6   04.05.2019 - Improved error handling @webservice
 
 import os
 import socket
