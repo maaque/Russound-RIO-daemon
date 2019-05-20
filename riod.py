@@ -335,7 +335,7 @@ def watchRussound(host, port, remoteTargets):
 
 		except Exception as err:
 			ConnectErrorDate=datetime.datetime.now()
-			debugFunction(0, "EXCEPTION: " + str(err))
+			debugFunction(0, "EXCEPTION - connection to Russound: " + str(err))
 			s=connectRussound(host, port)
 
 	s.close()
