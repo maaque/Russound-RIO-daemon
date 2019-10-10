@@ -34,9 +34,11 @@ treble: treble to be send -10 to 10<br>
 balance: Balance -10 to 10<br>
 channel: Radio Channel, defined in riod.ini, to be changed to
 
-The easiest way to run the script at startup:
+
+The easiest way to run the script at startup for a raspberry pi would be 
 1. cp systemd/riod.service /lib/systemd/system/riod.service
 2. sudo systemctl daemon-reload
 3. sudo systemctl enable riod.service
 4. sudo systemctl start riod.service
 
+On other systems, the steps would be similar, but may not be exactly the same, e.g. settings in systemd/riod.service may have to be adapted accordingly
