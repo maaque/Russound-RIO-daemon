@@ -14,6 +14,7 @@
 # V1.5   19.03.2019 - Add ssl support
 # V1.5.1 07.04.2019 - Change Status output
 # V1.6   04.05.2019 - Improved error handling @webservice
+# V1.7   09.10.2010 - Relative volume change cmd
 
 import os
 import socket
@@ -348,7 +349,7 @@ def checkCommand(cmdline):
 	digits = [ "DigitZero", "DigitOne", "DigitTwo", "DigitThree", "DigitFour", "DigitFive",
 			"DigitSix", "DigitSeven", "DigitEight", "DigitNine" ]
 	
-	result=dict(re.findall('(\w+)=([\w.]+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
+	result=dict(re.findall('(\w+)=([\w.+-]+)&?', cmdline.lower())) # e.g zone=1&source=1&action=0
 	debugFunction(1, json.dumps(result))
 
 	try:
@@ -399,9 +400,35 @@ def checkCommand(cmdline):
 				debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
 				return 401
 
+		elif action== "volumeup":
+			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
+
+		elif action== "volumedown":
+			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
+
 		elif action== "volume":
 			volume=result["volume"]
-			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress Volume ' + volume + '\r'
+
+			if volume[0]=="+":
+				count=int(volume[1:])
+				if count > 0 and count < 20:
+					i=1
+					while (i < count):
+						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
+						sendCommand(cmd)
+						i+=1
+
+			if volume[0]=="-":
+				count=int(volume[1:])
+				if count > 0 and count < 20:
+					i=1
+					while (i < count):
+						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
+						sendCommand(cmd)
+						i+=1
+			else:
+				if volume.isdigit():
+					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress Volume ' + volume + '\r'
 
 		elif action== "turnonvolume":
 			attr=result["volume"]

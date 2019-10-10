@@ -16,7 +16,9 @@ action:<br>
 	play - play a source and specific channel : zone, source, channel<br>
 	Off - zone power off : zone<br>
 	source - set source of zone : zone, source<br>
-	volume - set volume of zone : zone, volume<br>
+	volume - set volume of zone, a number with a leading '+' or '-' changes the volume relatively: zone, volume<br>
+	volumeup - Increase the volume by 1 step: zone<br>
+	volumedown - Decrease the volume by 1  step: zone<br>
 	bass - set bass of zone : zone, bass<br>
 	treble - set treble of zone : zone, treble<br>
 	balance - set bass of zone : zone, balance<br>
