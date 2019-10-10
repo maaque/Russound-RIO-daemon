@@ -413,8 +413,8 @@ def checkCommand(cmdline):
 				count=int(volume[1:])
 				if count > 0 and count < 20:
 					i=1
+					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
 					while (i < count):
-						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
 						sendCommand(cmd)
 						i+=1
 
@@ -422,8 +422,8 @@ def checkCommand(cmdline):
 				count=int(volume[1:])
 				if count > 0 and count < 20:
 					i=1
+					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
 					while (i < count):
-						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
 						sendCommand(cmd)
 						i+=1
 			else:
