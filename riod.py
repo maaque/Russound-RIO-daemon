@@ -16,6 +16,7 @@
 # V1.6   04.05.2019 - Improved error handling @webservice
 # V1.7   09.10.2019 - Relative volume change cmd
 # V1.7.1 13.10.2019 - Fix Broken Pipe connection error
+# V1.7.2 13.10.2019 - Fix Bug ignoring step 1
 
 import os
 import socket
@@ -357,6 +358,8 @@ def checkCommand(cmdline):
 	try:
 		action=result["action"]
 		zone=result["zone"]
+
+
 		try:
 			c=result["controller"]
 		except:
@@ -413,15 +416,18 @@ def checkCommand(cmdline):
 
 			if volume[0]=="+":
 				count=int(volume[1:])
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
+
 				if count > 0 and count < 20:
 					i=1
-					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
 					while (i < count):
 						sendCommand(cmd)
 						i+=1
 
 			if volume[0]=="-":
 				count=int(volume[1:])
+				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
+
 				if count > 0 and count < 20:
 					i=1
 					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
@@ -456,9 +462,9 @@ def checkCommand(cmdline):
 
 	except Exception as err:
 		debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
-		if err.errno == errno.EPIPE
+		if err.errno == errno.EPIPE:
 			return errno.EPIPE
-		else
+		else:
 			return 401
 	
 
@@ -546,7 +552,7 @@ def WebService(usessl, wport):
 					rc=checkCommand(res[1])
 					http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
 
-					if rc==errno.EPIPE
+					if rc==errno.EPIPE:
 						raise Exception("CheckCommand:Broken Pipe")
 
 
