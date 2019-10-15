@@ -14,10 +14,12 @@
 # V1.5   19.03.2019 - Add ssl support
 # V1.5.1 07.04.2019 - Change Status output
 # V1.6   04.05.2019 - Improved error handling @webservice
-# V1.7   09.10.2010 - Relative volume change cmd
+# V1.7   09.10.2019 - Relative volume change cmd
+# V1.7.1 13.10.2019 - Fix Broken Pipe connection error
 
 import os
 import socket
+import errno
 import ssl
 import sys
 import configparser
@@ -454,7 +456,10 @@ def checkCommand(cmdline):
 
 	except Exception as err:
 		debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
-		return 401
+		if err.errno == errno.EPIPE
+			return errno.EPIPE
+		else
+			return 401
 	
 
 def WebService(usessl, wport):
@@ -540,6 +545,10 @@ def WebService(usessl, wport):
 					res=re.split(r'^cmd\?(.*)', result, 0); 
 					rc=checkCommand(res[1])
 					http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
+
+					if rc==errno.EPIPE
+						raise Exception("CheckCommand:Broken Pipe")
+
 
 				else:
 					http_response += \
