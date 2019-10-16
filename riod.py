@@ -430,7 +430,6 @@ def checkCommand(cmdline):
 
 				if count > 0 and count < 20:
 					i=1
-					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
 					while (i < count):
 						sendCommand(cmd)
 						i+=1
