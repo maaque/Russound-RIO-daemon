@@ -34,6 +34,7 @@ treble: treble to be send -10 to 10<br>
 balance: Balance -10 to 10<br>
 channel: Radio Channel, defined in riod.ini, to be changed to
 
+The service supports ssl connections. It has to be enable in the ini file. Private key, Cert and CA file have to be copied in one bundle file, like "cat keyfile certfile cafile > bundle.crt"
 
 The easiest way to run the script at startup for a raspberry pi would be 
 1. cp systemd/riod.service /lib/systemd/system/riod.service
