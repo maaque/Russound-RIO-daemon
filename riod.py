@@ -17,6 +17,7 @@
 # V1.7   09.10.2019 - Relative volume change cmd
 # V1.7.1 13.10.2019 - Fix Broken Pipe connection error
 # V1.7.2 13.10.2019 - Fix Bug ignoring step 1
+# V1.7.3 23.02.2020 - Fix Bug send2Network
 
 import os
 import socket
@@ -79,25 +80,25 @@ def send2Network(options, msg):
 	if msg:
 		debugFunction(3, "Send Message :" + msg + " to Host " + host + " with Prot " + prot + " via Port " + str(port) )
 
-		if prot == "udp":
-			s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+		try:
+			if prot == "udp":
+				s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+				s.sendto(bytes(msg, "utf-8"), (host, port))
 
-			s.sendto(bytes(msg, "utf-8"), (host, port))
-
-		elif  prot == "tcp":
-			try:
+			elif  prot == "tcp":
 				s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 				s.connect((host, port))
 				s.sendall(bytes(msg, "utf-8"))
 				s.close
-			except Exception as err:
+
+			else:
+				debugFunction(2, 'Illegal Protocol ' + msg)
+			
+		except Exception as err:
 				debugFunction(0, "EXCEPTION - send2Network: " + str(err))
-		else:
-			debugFunction(2, 'Illegal Protocol ' + msg)
+
 	else:
 		debugFunction(0, 'Received empty string!')
-			
-			
 
 def set_keepalive(sock, after_idle_sec=10, interval_sec=3, max_fails=3):
 	# Set TCP keepalive on an open socket.
