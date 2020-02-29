@@ -18,6 +18,7 @@
 # V1.7.1 13.10.2019 - Fix Broken Pipe connection error
 # V1.7.2 13.10.2019 - Fix Bug ignoring step 1
 # V1.7.3 23.02.2020 - Fix Bug send2Network
+# V1.7.4 29.02.2020 - Add cmd volup and voldown
 
 import os
 import socket
@@ -283,33 +284,6 @@ def watchRussound(host, port, remoteTargets):
 
 							debugFunction(2, "ZONE: %s, Attr: %s, Current:%s" % ( res[2],res[3],json.dumps(source)))
 
-							# if res[3] == "status":
-			
-								# if ZoneConfig[res[1]][res[2]]["status"] == "ON" and res[4] == "OFF":
-									# try:
-										# SourceConfig[source]["activeZones"] -=1
-									# except:
-										# SourceConfig[source]["activeZones"] =0
-										
-								# elif ZoneConfig[res[1]][res[2]]["status"] == "OFF" and res[4] == "ON":
-									# try:
-										# SourceConfig[source]["activeZones"] +=1
-									# except:
-										# SourceConfig[source]["activeZones"] = 1
-							
-							# elif res[3] == "currentSource":
-
-								# if ZoneConfig[res[1]][res[2]]["status"] == "ON":
-									# try:
-										# SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] -=1
-									# except:
-										# SourceConfig[ZoneConfig[res[1]][res[2]]["currentSource"]]["activeZones"] = 0
-									
-									# try:
-										# SourceConfig[res[4]]["activeZones"] +=1
-									# except:
-										# SourceConfig[res[4]]["activeZones"] = 1
-
 							ZoneConfig[res[1]][res[2]][res[3]]=res[4]
 							debugFunction(1, "ZONE: " + line)
 							
@@ -376,14 +350,14 @@ def checkCommand(cmdline):
 		elif action == "0" or  action== "off":
 			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOff\r'
 			
-		elif action== "source":
+		elif action == "source":
 			try:
 				source=result["source"]
 				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
 			except:
 				pass
 
-		elif action== "play":
+		elif action == "play":
 			try:
 				source=result["source"]
 				try: 
@@ -406,13 +380,13 @@ def checkCommand(cmdline):
 				debugFunction(0, "EXCEPTION - checkCommand: " + str(err))
 				return 401
 
-		elif action== "volumeup":
+		elif action == "volumeup" or action == "volup":
 			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeUp\r'
 
-		elif action== "volumedown":
+		elif action == "volumedown" or action == "voldown":
 			cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
 
-		elif action== "volume":
+		elif action == "volume":
 			volume=result["volume"]
 
 			if volume[0]=="+":
@@ -425,7 +399,7 @@ def checkCommand(cmdline):
 						sendCommand(cmd)
 						i+=1
 
-			if volume[0]=="-":
+			if volume[0] == "-":
 				count=int(volume[1:])
 				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress VolumeDown\r'
 
@@ -438,19 +412,19 @@ def checkCommand(cmdline):
 				if volume.isdigit():
 					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyPress Volume ' + volume + '\r'
 
-		elif action== "turnonvolume":
+		elif action == "turnonvolume":
 			attr=result["volume"]
 			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
 
-		elif action== "bass":
+		elif action == "bass":
 			attr=result["bass"]
 			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
 
-		elif action== "balance":
+		elif action == "balance":
 			attr=result["balance"]
 			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
 
-		elif action== "treble":
+		elif action == "treble":
 			attr=result["treble"]
 			cmd='SET C[' + str(c) + '].Z[' + zone + '].' + action + '="' + attr + '"\r'
 
