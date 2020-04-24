@@ -19,22 +19,26 @@
 # V1.7.2 13.10.2019 - Fix Bug ignoring step 1
 # V1.7.3 23.02.2020 - Fix Bug send2Network
 # V1.7.4 29.02.2020 - Add cmd volup and voldown
+# V1.7.5 19.04.2020 - Add cmd toggle
+# V1.8 	 24.04.2020 - Implement mqtt protocol for status updates and Cmd
 
-import os
-import socket
-import errno
-import ssl
-import sys
 import configparser
-import optparse
-import time
-import string
-import re
 import datetime
-import threading
+import errno
 import json
-import syslog
+import optparse
+import os
+import paho.mqtt.client as mqtt
+import re
+import socket
+import ssl
+import string
 import struct
+import sys
+import syslog
+import threading
+import time
+
 from collections import defaultdict
 
 class recursivedefaultdict(defaultdict):
@@ -45,6 +49,12 @@ ZoneConfig=recursivedefaultdict()
 SourceConfig=defaultdict(dict)
 ZoneCount=defaultdict(dict)
 ControllerType=defaultdict(dict)
+
+MQTT_TOPIC_DEFAULT="/riod"
+MQTT_TOPIC_DATA="/Data"
+MQTT_TOPIC_ACK="/Ack"
+MQTT_TOPIC_CMD="/Cmd"
+MQTT_TOPIC_GET="/Get"
 
 #//// Init section ////
 debugLevel=0
@@ -67,36 +77,56 @@ def debugFunction(level, msg):
 		if level <= debugLevel:
 			print(msg)
 		
-def send2Network(options, msg):
+def send2Network(options, msg, QoS=0):
 
-	# netcat debug UDP: nc -kluv <port No>
-	# netcat debug TCP: nc -klv <port No>
+	debugFunction(3, "send2Network: " + options + " - Msg: " + msg[0:10])
 
 	res=options.split(':') # tcp:127.0.0.1:5001
 	prot=res[0].lower()
-	host=res[1]
-	port=int(res[2])
 	msg=msg.strip()
 	
+	
 	if msg:
-		debugFunction(3, "Send Message :" + msg + " to Host " + host + " with Prot " + prot + " via Port " + str(port) )
+		debugFunction(1, "send2Network: " + msg[0:10] + " with Protocol: " + prot)
 
-		try:
-			if prot == "udp":
-				s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
-				s.sendto(bytes(msg, "utf-8"), (host, port))
+		if  prot == "mqtt":
+			try:
+				topic=res[1]
+				if not topic: #Topic defined in ini?
+					topic=MQTT_TOPIC_DEFAULT
+			except:
+				topic=MQTT_TOPIC_DEFAULT
 
-			elif  prot == "tcp":
-				s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-				s.connect((host, port))
-				s.sendall(bytes(msg, "utf-8"))
-				s.close
-
-			else:
-				debugFunction(2, 'Illegal Protocol ' + msg)
+			try:
+				mqtt_client.publish(topic, bytes(msg, "utf-8"), QoS)
 			
-		except Exception as err:
-				debugFunction(0, "EXCEPTION - send2Network: " + str(err))
+			except Exception as e:
+				debugFunction(0, "send2Network MQTT:" + str(e))
+
+		else:
+			
+			host=res[1]
+			port=int(res[2])
+
+			try:
+				if prot == "udp":
+					s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
+					s.sendto(bytes(msg, "utf-8"), (host, port))
+
+				elif  prot == "tcp":
+					try:
+						s.sendall(bytes(msg, "utf-8"))
+					except:
+						s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+						s.connect((host, port))
+
+#					s.close
+
+				else:
+					debugFunction(2, 'Illegal Protocol ' + msg)
+				
+			except Exception as err:
+					debugFunction(0, "EXCEPTION - send2Network: " + str(err))
 
 	else:
 		debugFunction(0, 'Received empty string!')
@@ -248,7 +278,7 @@ def watchRussound(host, port, remoteTargets):
 	while True:
 		try:
 			result = s.recv(1024)
-			debugFunction(1, 'Read: ' + str (result))														  
+			debugFunction(2, 'Read: ' + str (result))														  
 
 			TimebetweenRead=datetime.datetime.now() - LastReadDateTime
 			
@@ -285,7 +315,7 @@ def watchRussound(host, port, remoteTargets):
 							debugFunction(2, "ZONE: %s, Attr: %s, Current:%s" % ( res[2],res[3],json.dumps(source)))
 
 							ZoneConfig[res[1]][res[2]][res[3]]=res[4]
-							debugFunction(1, "ZONE: " + line)
+							debugFunction(2, "ZONE: " + line)
 							
 							if "ZoneConfig" in remoteTargets:
 								send2Network(remoteTargets["ZoneConfig"], json.dumps(ZoneConfig))
@@ -324,6 +354,7 @@ def sendCommand(cmd):
 	debugFunction(0, "sendCommand: " + cmd)
 
 def checkCommand(cmdline):
+	global ZoneConfig
 	digits = [ "DigitZero", "DigitOne", "DigitTwo", "DigitThree", "DigitFour", "DigitFive",
 			"DigitSix", "DigitSeven", "DigitEight", "DigitNine" ]
 	
@@ -331,16 +362,33 @@ def checkCommand(cmdline):
 	debugFunction(1, json.dumps(result))
 
 	try:
-		action=result["action"]
+		action=result["action"].lower()
 		zone=result["zone"]
-
 
 		try:
 			c=result["controller"]
 		except:
 			c=1
 
-		if action == "1" or  action== "on":
+		if action == 'toggle':
+			try:
+				newStatus = 'Off' if ZoneConfig[str(c)][str(zone)]["status"] == 'ON' else 'On'
+				debugFunction(2, 'CheckCommand-toogle: ZoneConfig[' + str(c) + '][' + str(zone) + '["status"]:' \
+					+ ZoneConfig[str(c)][str(zone)]["status"] + 'New status will be: ' + newStatus   )
+				
+				if newStatus == "On":
+					try:
+						source=result["source"]
+						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
+					except:
+						cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOn\r'
+				else:
+					cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!ZoneOff\r'
+
+			except Exception as err:
+				debugFunction(0, "EXCEPTION - checkCommand, action=toggle: " + str(err))
+
+		elif action == "1" or  action== "on":
 			try:
 				source=result["source"]
 				cmd='EVENT C[' + str(c) + '].Z[' + zone + ']!KeyRelease SelectSource ' + source + '\r'
@@ -440,7 +488,110 @@ def checkCommand(cmdline):
 			return errno.EPIPE
 		else:
 			return 401
+
+
+
+def prepareResponse(request):
+
+	debugFunction(1, "prepareResponse: request=" + request)
+
+	response=""
+
+	if request == 'zoneconfig':
+		response += json.dumps(ZoneConfig)
+
+	elif str(request) == 'sourceconfig':
+		response += json.dumps(SourceConfig)
+
+	elif request == 'channels':
+		response += json.dumps(Channels)
+
+	elif request == 'defaultchannels':
+		response += json.dumps(DefChannel)
+
+	elif re.search(r'status.*', request, 0):
+		response += \
+			'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+			', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+			', "ZoneCount": ' + json.dumps(ZoneCount) + \
+			', "ControllerType": ' + json.dumps(ControllerType) + \
+			', "CountSource": ' + json.dumps(SourceCount) + \
+			', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
+			', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
+			', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
+			', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
+			', "LastRead": ' + json.dumps(LastRead) + \
+			', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+			'}'
+	else:
+		response += \
+			'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
+			', "SourceConfig": ' + json.dumps(SourceConfig) + \
+			', "Channels": ' + json.dumps(Channels) + \
+			', "DefaultChannel": ' + json.dumps(DefChannel) + \
+			', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
+			', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
+			', "CountSource": ' + json.dumps(SourceCount) + \
+			'}'
+
+	debugFunction(1, "prepareResponse: response=" + response)
+
+	return response
+
+def mqtt_on_connect(client, userdata, flags, rc):
+	debugFunction(1, "Connected with result code "+str(rc))
+
+	client.subscribe([(mqttTopic + MQTT_TOPIC_GET, 2),(mqttTopic + MQTT_TOPIC_CMD, 2)])
+
+def mqtt_on_message(client, userdata, msg):
+	try:
+		payload = msg.payload.decode().strip('\n')
+		debugFunction(1, "topic: " + msg.topic + " payload: " + payload)
+
+		if msg.topic == mqttTopic + MQTT_TOPIC_GET:
+
+			response=prepareResponse(payload)
+			send2Network("mqtt:" + mqttTopic + MQTT_TOPIC_DATA, response, 1)
+
+		elif msg.topic == mqttTopic + MQTT_TOPIC_CMD:
+			rc=checkCommand(payload);
+
+			send2Network("mqtt:" + ':' + mqttTopic + MQTT_TOPIC_ACK, \
+				"Ok" if rc == 200 else str(rc) + ' - Cmd: ' + payload, 2)
+
+	except Exception as e:
+		debugFunction(0, "mqtt_on_message: "+ str(e))
+
+def MQTTService(mqttHost, mqttPort, mqttTopic, mqttUser, mqttPass):
+	global mqtt_client
 	
+	debugFunction (0, 'Connect MQTT to ' + mqttHost + ' on port ' + str(mqttPort) + ' with Topic ' + ' SSL is ' \
+		+ mqttTopic)
+	try:
+		mqtt_client = mqtt.Client()
+		if usemqttssl:
+			mqtt_client.tls_set(mqttcertificatefile, tls_version=ssl.PROTOCOL_TLSv1_2)
+			mqtt_client.tls_insecure_set(True)
+			
+		if mqttUser:
+			mqtt_client.username_pw_set(mqttUser, mqttPass)
+
+		mqtt_client.connect(mqttHost, mqttPort)
+
+		mqtt_client.on_connect = mqtt_on_connect
+		mqtt_client.on_message = mqtt_on_message
+
+		mqtt_client.loop_forever()
+
+	except Exception as e:
+		debugFunction(0, "MQTT Service Initiation: "+ str(e))
 
 def WebService(usessl, wport):
 	
@@ -487,65 +638,18 @@ def WebService(usessl, wport):
 				
 				debugFunction(1, "Result: " + result)
 
-			
 				http_response = "HTTP/1.1 200 OK\nCache-Control: no-cache\nAccess-Control-Allow-Origin: *\nContent-Type: application/json\n\n"
-				if result == 'zoneconfig':
-					http_response += json.dumps(ZoneConfig)
 
-				elif result == 'sourceconfig':
-					http_response += json.dumps(SourceConfig)
-
-				elif result == 'channels':
-					http_response += json.dumps(Channels)
-
-				elif result == 'defaultchannels':
-					http_response += json.dumps(DefChannel)
-
-				elif re.search(r'status.*', result, 0):
-					http_response += \
-						'{ "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "ConnectErrorDate": ' + json.dumps(ConnectErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-						', "ZoneCount": ' + json.dumps(ZoneCount) + \
-						', "ControllerType": ' + json.dumps(ControllerType) + \
-						', "CountSource": ' + json.dumps(SourceCount) + \
-						', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
-						', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
-						', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
-						', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
-						', "LastRead": ' + json.dumps(LastRead) + \
-						', "LastReadDateTime": ' + json.dumps(LastReadDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
-						'}'
-
-				elif re.search(r'^cmd\?(.*)', result, 0): #GET /cmd?zone=1&source=1?status=1
+				if re.search(r'^cmd\?(.*)', result, 0): #GET /cmd?zone=1&source=1?status=1
 					res=re.split(r'^cmd\?(.*)', result, 0); 
 					rc=checkCommand(res[1])
 					http_response = 'HTTP/1.1 ' + str(rc) + ' OK\nAccess-Control-Allow-Origin: *\n\n<html></html>'
 
 					if rc==errno.EPIPE:
 						raise Exception("CheckCommand:Broken Pipe")
-
-
 				else:
-					http_response += \
-						'{ "ZoneConfig": ' + json.dumps(ZoneConfig) + \
-						', "SourceConfig": ' + json.dumps(SourceConfig) + \
-						', "Channels": ' + json.dumps(Channels) + \
-						', "DefaultChannel": ' + json.dumps(DefChannel) + \
-						', "StartDate": ' + json.dumps(startdate.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "LastReconnect": ' + json.dumps(lastconnect.strftime("%d.%m.%Y %H:%M:%S")) + \
-						', "DeviceVersion": ' + json.dumps(DeviceVersion) + \
-						', "DeviceStatus": ' + json.dumps(DeviceStatus) + \
-						', "CountSource": ' + json.dumps(SourceCount) + \
-						'}'
+					http_response += prepareResponse(result)
 
-			else:
-				http_response += 'Illegal Reuest'
-			
 			client_connection.sendall(http_response.encode())
 			client_connection.close()
 			client_connection=None
@@ -557,7 +661,9 @@ def WebService(usessl, wport):
 
 		
 def main(argv):
-	global host, wport, port, SSLPort, usessl, debugTarget, debugLevel, macAddr, remoteTargets, controllers, Channels, DefChannel, ignoresources, ignorezones, certificatefile
+	global host, wport, port, SSLPort, usessl, useWeb, useMQTT, debugTarget, debugLevel, macAddr, \
+		mqttTopic, mqttHost, mqttPort, mqttUser, mqttPass, usemqttssl, mqttcertificatefile, \
+		remoteTargets, controllers, Channels, DefChannel, ignoresources, ignorezones, certificatefile
 	
 	config = configparser.ConfigParser()
 	config.optionxform = str
@@ -589,32 +695,60 @@ def main(argv):
 	
 	try:
 		ignorezones=config.get("Common","IgnoreZones").split(',')
-		ignorezones = list(map(int, ignorezones))
+		ignorezones=list(map(int, ignorezones))
 	except:
 		ignorezones=[]
 	debugFunction(2, "IgnoreZones: " + json.dumps(ignorezones))
 
 	try:
-		macAddr=config.get("Common","MAC")
+		macAddr = config.get("Common","MAC")
 	except:
 		maxAddr=None
 	
 	try:
+		useWeb=int(config.get("Webserver","EnableWeb"))
+	except:
+		useWeb=1
+
+	try:
 		usessl=int(config.get("Webserver","EnableSSL"))
+		if usessl == 1:
+			certificatefile=config.get("Webserver","Certificate")
+			debugFunction(0, "Certificate file is missing in ini - fallback to http")
+			SSLPort=int(config.get("Webserver","SSLPort"))		
+			debugFunction(0, "SSL port missing in ini - fallback to http")
 	except:
-		usessl=0
+		usesll=0
+
+	try:
+		useMQTT=int(config.get("MQTT","EnableMQTT"))
+
+		if useMQTT:
+			mqttHost=config.get("MQTT","Host")
+			try:
+				mqttPort=int(config.get("MQTT","Port"))
+			except:
+				mqttPort=1883
+			mqttTopic=config.get("MQTT","Topic")
+			
+			try:
+				mqttUser=config.get("MQTT","username")
+				mqttPass=config.get("MQTT","password")
+			except:
+				mqttUser=False
+				mqttPass=False
 		
-	try:
-		certificatefile=config.get("Webserver","Certificate")
+			try:
+				usemqttssl=int(config.get("MQTT","EnableMQTTSSL"))
+				if usemqttssl == 1:
+					mqttcertificatefile=config.get("MQTT","Certificate")
+					debugFunction(0, "MQTT Certificate file is missing in ini")
+			except:
+				usemqttssl=0
+		
 	except:
-		usessl=0
-		debugFunction(0, "Certificate file is missing in ini - fallback to http")
-	try:
-		SSLPort=int(config.get("Webserver","SSLPort"))
-	except:
-		usessl=0
-		debugFunction(0, "SSL port missing in ini - fallback to http")
-	
+		useMQTT=0
+
 
 	controllers=config.get("Common","Controllers").split(',')	
 	host=config.get("Common","Russound")
@@ -700,10 +834,20 @@ def main(argv):
 	debugFunction(1, "Russound address: " + host + ", Port: " + str(port))
 	debugFunction(1, "Webserver Port: " + str(wport))
 	debugFunction(1, "SSL: " + str(usessl))
+	debugFunction(1, "Webserver: " + str(useWeb))
+	debugFunction(1, "MQTT: " + str(useMQTT))
+
+	if useMQTT == 1:
+		debugFunction(1, "MQTT Host: " + mqttHost)
+		debugFunction(1, "MQTT Port: " + str(mqttPort))
+		debugFunction(1, "MQTT Topic: " + mqttTopic)
+		debugFunction(1, "MQTT User: " + mqttUser)
+		debugFunction(1, "MQTT Pass: " + mqttPass)
 
 	if usessl:
 		debugFunction(1, "SSL Webserver Port: " + str(SSLPort))
 		debugFunction(1, "Certificate: " + certificatefile)
+
 	debugFunction(1, "Controller : " + json.dumps(controllers))
 
 	debugFunction(1, "IgnoreZone : " + json.dumps(ignorezones))
@@ -721,14 +865,27 @@ startdate=datetime.datetime.now()
 	
 t1.daemon = True
 t1.start()
-t2.daemon = True
-t2.start()
 
-if usessl:
-	t3 = threading.Thread(target=WebService, args=(1, SSLPort))
+if useWeb:
+	debugFunction(1, "Starting Web-Service...")
+
+	t2.daemon = True
+	t2.start()
+
+if useMQTT == 1:
+	debugFunction(1, "Starting MQTT-Service...")
+
+	t3 = threading.Thread(target=MQTTService, args=(mqttHost, mqttPort, mqttTopic, mqttUser, mqttPass))
 	t3.start()
-	t3.join()
-	
-t2.join()
+
+
+if usessl == 1:
+	debugFunction(1, "Starting SSL-Service...")
+
+	t4 = threading.Thread(target=WebService, args=(1, SSLPort))
+	t4.start()	
+
+
 t1.join()
+
 

@@ -11,13 +11,14 @@ Port=9621
 # Default is 1, if multiple controller are connect, seperated by comma e.g. 1,2,3
 Controllers=1
 # Optional Hardware MAC address of Russound to send WOL packet
-#MAC=00:21:c7:10:49:5c
+#MAC=00:aa:bb:cc:dd:ee
 # Zones to excluded, seperated by comma, e.g. 7,8 or 8
 IgnoreZones=8
 # Sources to excluded, seperated by comma, e.g. 7,8 or 8
 IgnoreSources=6,7,8
 
 [Webserver]
+EnableWeb=1
 #Listen port of the script, to provide status, ZoneConfig, SourceConfig, etc information
 Port=9621
 #Enable SSL?
@@ -25,7 +26,17 @@ EnableSSL=1
 #SSL Port to listen
 SSLPort=9622
 #Path to Certificat File 1. Key - 2. Cert - 3. CA
-Certificate=/path-to/bundle.crt			
+Certificate=/path-to/bundle.crt
+
+[MQTT]
+#Enable MQTT?
+EnableMQTT=1
+Host=hostname.domain
+EnableMQTTSSL=1
+Certificate=//path-to/bundle.crt
+Topic=Russound
+username=russound
+password=russound
 
 [RemoteTargets]
 # This section defines, what attributes to be send over the network
@@ -38,6 +49,11 @@ radioText=udp:127.0.0.1:5003
 SourceConfig=udp:127.0.0.1:5001
 ZoneConfig=udp:127.0.0.1:5002
 #programServiceName=tcp:127.0.0.1:5001
+SourceConfig=mqtt:russound/SourceConfig
+#ZoneConfig=tcp:mcac5.q1u.de:5002
+ZoneConfig=mqtt:russound/ZoneConfig
+#programServiceName=udp:mcac5.q1u.de:5004
+programServiceName=mqtt:russound/Sender
 # netcat debug UDP: nc -kluv  127.0.0.1 5001
 # netcat debug TCP: nc -klv  127.0.0.1 5001
 
@@ -45,20 +61,27 @@ ZoneConfig=udp:127.0.0.1:5002
 #Unitymedia Hessen
 Antenne BY=94.00
 Antenne FFM=106.20
-AFN=105.15
 Bayern1=91.20
 Bayern2=92.15
 Bayern3=92.45
+Bayern5=95.75
 BIG FM=100.95
+BOB!=99.05
 FFH=90.75
 harmony.fm=107.50
 hr1=87.60
 hr2=99.45
 hr3=88.55
-hr-info=88.55
+hr4=89.00
+hr-info=88.20
+Klassik=107.20
+Planet=103.75
+RPR1=96.95
+RTL=103.30
 SWR1=94.65
 SWR2=94.95
 SWR3=96.20
+SWR4=91.15
 WDR2=101.25
 WDR3=101.70
 YouFM=89.80

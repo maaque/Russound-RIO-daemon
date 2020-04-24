@@ -1,13 +1,26 @@
 # Russound-RIO-daemon
 The purpose of riod.py to permanelty run as a daemon on a unix hosts, e.g. raspberry and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88.
-It always able to provide the current configuration via built in Web Service and could send update to specific hosts via TCP and UPD and provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88.
+It always able to provide the current configuration via built in Web Service and could send update to specific hosts via TCP, UPD and MQTT to provide the status of a Russound device MCA-C3, MCA-C5 or MCA-88.
 It has been only tested with python3. Location of riod.ini could be either script dir, /etc or /usr/local/etc
-The ini file is key, to configure russound connection, Radio channels, as well as any outbound udp or tcp connections
+The ini file is mandatory, to configure russound connection, Radio channels, as well as any outbound udp, tcp or mqtt connections
 <br>
-It allows to control the russound as well:
+There are 2 different to send commands to russound
 
-
+1. http
 Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
+Parameters, like ports or TLS, have to be defined in ini-file in section [Webserver] 
+To test with a standard Webbrowser works ok. To use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
+
+2. mqtt 
+Parameters, like ports, TLS or topics, have to be defined in ini-file in section [MQTT]. Topics are case-sensitive
+The Root topics can be also defined in the ini-file. Sub-Topics are
+/Cmd - Send Commands to the Script
+/Ack - Acknoledge /Cmd
+/Get - Retrieve Information from Russound Device
+/Data - Response to a /Get request 
+
+
+If the script es registered  Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
 
 Webbrowser works ok, if you would like to use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
 
@@ -17,8 +30,8 @@ action:<br>
 	Off - zone power off : zone<br>
 	source - set source of zone : zone, source<br>
 	volume - set volume of zone, a number with a leading '+' or '-' changes the volume relatively: zone, volume<br>
-	volumeup - Increase the volume by 1 step: zone<br>
-	volumedown - Decrease the volume by 1  step: zone<br>
+	volup - Increase the volume by 1 step: zone<br>
+	voldown - Decrease the volume by 1  step: zone<br>
 	bass - set bass of zone : zone, bass<br>
 	treble - set treble of zone : zone, treble<br>
 	balance - set bass of zone : zone, balance<br>
