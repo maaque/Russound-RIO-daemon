@@ -11,7 +11,7 @@ Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2<br>
 Parameters, like ports or TLS, have to be defined in ini-file in section [Webserver] <br>
 To test with a standard Webbrowser works ok. To use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
 <br>
-<br>
+
 2. mqtt<br>
 Parameters, like ports, TLS or topics, have to be defined in ini-file in section [MQTT]. Topics are case-sensitive<br>
 The Root topics can be also defined in the ini-file. Sub-Topics are<br>
