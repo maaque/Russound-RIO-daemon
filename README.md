@@ -21,8 +21,6 @@ The Root topics can be also defined in the ini-file. Sub-Topics are<br>
 /Data - Response to a /Get request<br>
 <br>
 <br>
-Webbrowser works ok, if you would like to use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
-
 action:<br>
 	On - zone power on : zone, source<br>
 	play - play a source and specific channel : zone, source, channel<br>
