@@ -4,16 +4,17 @@ It always able to provide the current configuration via built in Web Service and
 It has been only tested with python3. Location of riod.ini could be either script dir, /etc or /usr/local/etc
 The ini file is mandatory, to configure russound connection, Radio channels, as well as any outbound udp, tcp or mqtt connections
 <br>
-There are 2 different to send commands to russound
-
-1. http
-Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
-Parameters, like ports or TLS, have to be defined in ini-file in section [Webserver] 
+There are 2 different to send commands to russound:
+<br>
+1. http<br>
+Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2<br>
+Parameters, like ports or TLS, have to be defined in ini-file in section [Webserver] <br>
 To test with a standard Webbrowser works ok. To use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
+<br>
 
-2. mqtt 
-Parameters, like ports, TLS or topics, have to be defined in ini-file in section [MQTT]. Topics are case-sensitive
-The Root topics can be also defined in the ini-file. Sub-Topics are
+2. mqtt<br>
+Parameters, like ports, TLS or topics, have to be defined in ini-file in section [MQTT]. Topics are case-sensitive<br>
+The Root topics can be also defined in the ini-file. Sub-Topics are<br>
 /Cmd - Send Commands to the Script
 /Ack - Acknoledge /Cmd
 /Get - Retrieve Information from Russound Device
