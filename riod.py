@@ -21,6 +21,7 @@
 # V1.7.4 29.02.2020 - Add cmd volup and voldown
 # V1.7.5 19.04.2020 - Add cmd toggle
 # V1.8 	 24.04.2020 - Implement mqtt protocol for status updates and Cmd
+# V1.9 	 27.04.2020 - Translate RDS from IEC62106 to ISO-8859-15
 
 import configparser
 import datetime
@@ -55,37 +56,64 @@ MQTT_TOPIC_DATA="/Data"
 MQTT_TOPIC_ACK="/Ack"
 MQTT_TOPIC_CMD="/Cmd"
 MQTT_TOPIC_GET="/Get"
+MQTT_TOPIC_SET="/Set"
 
 #//// Init section ////
 debugLevel=0
 debugTarget=0
+debugHex=0
 ConvertErrorStr=""
 ConvertErrorHex=""
-ConvertErrorDateTime=datetime.datetime(1970,1,1)
-ConnectErrorDate=ConvertErrorDateTime
+ConvertErrorDate=datetime.datetime(1970,1,1)
+ConnectErrorDate=ConvertErrorDate
 LastReadDateTime=datetime.datetime.now()
 TimebetweenRead=LastReadDateTime-LastReadDateTime
 MaxTimeReadDiff=TimebetweenRead
 MaxTimeReadDiffDate=LastReadDateTime
 
+
+# Convert Umlaut from according to IEC 62106 Annex E table 1 translate to ISO_8859-15
+# https://de.wikipedia.org/wiki/ISO_8859-15
+
+#	          ö   ä   ü Grad  ß   $   Ä   Ö   Ü   €   ©
+IEC_map = b'\x97\x91\x99\xbb\x8d\xab\xd1\xd7\xd9\xa9\xa2'
+ISO_map = b'\xf6\xe4\xfc\xb0\xdf\x24\xc4\xd6\xdc\xa4\xa9'
+
+transtab =  bytes.maketrans(IEC_map, ISO_map)
+
+
+# Convert a string to Hex - String
+def str2hex(str):
+
+	hexstr = ""
+
+	hexstr = ''.join([hex(ord(i)) for i in str]);
+
+	return hexstr
+
+# Print Debug message to syslog or screen
 def debugFunction(level, msg):
+	global debugHex
 
 	if debugTarget == 1:
 		if level <= debugLevel:
 			syslog.syslog(msg)
+
 	if debugTarget == 2:
 		if level <= debugLevel:
 			print(msg)
+			if debugHex == 1:
+				print(str2hex(msg))
 		
-def send2Network(options, msg, QoS=0):
+# Alle network packages are send via send2Network, either with tcp, udp or mqtt
+def send2Network(options, msg, QoS=0): 
 
-	debugFunction(3, "send2Network: " + options + " - Msg: " + msg[0:10])
+	debugFunction(3, "send2Network: " + options + " - Msg: " + msg[0:30])
 
 	res=options.split(':') # tcp:127.0.0.1:5001
 	prot=res[0].lower()
 	msg=msg.strip()
-	
-	
+		
 	if msg:
 		debugFunction(1, "send2Network: " + msg[0:10] + " with Protocol: " + prot)
 
@@ -99,12 +127,14 @@ def send2Network(options, msg, QoS=0):
 
 			try:
 				mqtt_client.publish(topic, bytes(msg, "utf-8"), QoS)
+				if debugHex:
+					mqtt_client.publish(topic, str2hex(msg), QoS)
+
 			
 			except Exception as e:
 				debugFunction(0, "send2Network MQTT:" + str(e))
 
 		else:
-			
 			host=res[1]
 			port=int(res[2])
 
@@ -142,13 +172,13 @@ def set_keepalive(sock, after_idle_sec=10, interval_sec=3, max_fails=3):
 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPIDLE, after_idle_sec)
 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPINTVL, interval_sec)
 	sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_KEEPCNT, max_fails)
-	debugFunction(0, 'Socket Options defined: Idle (sec)=' + str(after_idle_sec) + \
+	debugFunction(1, 'Socket Options defined: Idle (sec)=' + str(after_idle_sec) + \
 		', Interval (sec)=' + str(interval_sec) + ', MaxFail=' + str(max_fails))
 	
+# Connect TCP to Russound device
 def connectRussound(host, port):
 	global s, lastconnect, DeviceVersion, ZoneConfig, ZoneCount, ControllerType, SourceCount
-	#////// CONNECT //////////////////////////////////////////////////////
-	
+
 	connected=False
 	while not connected:
 		try:
@@ -201,7 +231,7 @@ def connectRussound(host, port):
 			if res[0] == 'S': #Success
 				ZoneCount[c] += 1
 			else:
-				debugFunction(2, "ZoneCount=" + str(ZoneCount[c]))
+				debugFunction(0, "ZoneCount=" + str(ZoneCount[c]))
 				break
 
 	# Read Number if Sources
@@ -212,7 +242,7 @@ def connectRussound(host, port):
 		if res[0] == 'S': #Success
 			SourceCount += 1
 		else:
-			debugFunction(2, "SourceCount=" + str(SourceCount))
+			debugFunction(0, "SourceCount=" + str(SourceCount))
 			break
 			
 	debugFunction(0, 'WATCH SYSTEM ON')
@@ -240,36 +270,50 @@ def connectRussound(host, port):
 	set_keepalive(s)
 	return s	 
 
+#translate IEC 62106 to ISO_8859-15
+def checkCharSet(line):
 
-# Convert Umlaut, no clue what the Charset is	
-def checkCharSet(byteStr):
-	i=0
-	while i < len(byteStr):
-		if byteStr[i] == 0x97:		# ö Ö -> \xd6
-			byteStr[i] = 0xf6
-		elif byteStr[i] == 0x91:	# ä Ä -> \xc4
-			byteStr[i] = 0xe4
-		elif byteStr[i] == 0x99:	# ü Ü -> \xdc  ß -> \xdf é=\u0083  Ī=\u0084
-			byteStr[i] = 0xfc
-		
-		i+=1
-		
-	return byteStr
+	global ConvertErrorStr, ConvertErrorHex, ConvertErrorDate
 
-def countActiveSources():
-	for s in SourceConfig:
-		SourceConfig[s]["activeZones"]=0
+	try:
+		rc=line.translate(transtab)
+	except Exception as err:
+		debugFunction(0, "EXCEPTION - CheckCharSet: " + str(err))
 
-	for controller in ZoneConfig:
-		for zone in ZoneConfig[controller]:
-			source=ZoneConfig[controller][zone]["currentSource"]
+	try:
+		line = rc.decode('iso-8859-15') 
+	except:
+		line = rc.decode('iso-8859-15', 'ignore')
+		ConvertErrorHex=''.join(hex(ord(x))[2:] for x in rc)
+		debugFunction (0, ConvertErrorHex)
+		debugFunction(0, 'Convert Error: ' + rc)
+		ConvertErrorStr=rc
+		ConvertErrorDate=datetime.datetime.now() 
 
-			if ZoneConfig[controller][zone]["status"] == "ON":
-				SourceConfig[source]["activeZones"] +=1
+
+	return line
+
+def countActiveSources():	
+	if bool(SourceConfig):
+		try:
+			for s in SourceConfig:
+				SourceConfig[s]["activeZones"]=0
+
+			for controller in ZoneConfig:
+				for zone in ZoneConfig[controller]:
+					source=ZoneConfig[controller][zone]["currentSource"]
+
+					if ZoneConfig[controller][zone]["status"] == "ON":
+						SourceConfig[source]["activeZones"] +=1
+		except Exception as err:
+			debugFunction(0, "EXCEPTION - countActiveSource: " + str(err))
+	else:
+		debugFunction(1, "countActiveSource: SoruceConfig is empty")
+	
+
 	
 def watchRussound(host, port, remoteTargets):
-	global DeviceStatus, LastRead, LastReadDateTime, TimebetweenRead,\
-		MaxTimeReadDiff, MaxTimeReadDiffDate, ConvertErrorStr, ConvertErrorHex, ConvertErrorDateTime, ConnectErrorDate
+	global DeviceStatus, LastRead, LastReadDateTime, TimebetweenRead, MaxTimeReadDiff, MaxTimeReadDiffDate
 
 	# Initial connect
 	s=connectRussound(host, port);
@@ -290,16 +334,8 @@ def watchRussound(host, port, remoteTargets):
 
 			for line in result.split(b'\r\n'): #Split results in different lines
 				if len(line) > 0:
-					try:
-						line=checkCharSet(bytearray(line))
-						line = line.decode('iso-8859-1') 
-					except:
-						line = line.decode('iso-8859-1', 'ignore')
-						ConvertErrorHex=''.join(hex(ord(x))[2:] for x in line)
-						debugFunction (0, ConvertErrorHex)
-						debugFunction(0, 'Convert Error: ' + line)
-						ConvertErrorStr=line
-						ConvertErrorDateTime=datetime.datetime.now() 
+					
+					line=checkCharSet(line)
 			
 					LastRead=line
 					if line[0] is 'N':
@@ -362,7 +398,7 @@ def checkCommand(cmdline):
 	debugFunction(1, json.dumps(result))
 
 	try:
-		action=result["action"].lower()
+		action=result["action"]
 		zone=result["zone"]
 
 		try:
@@ -489,8 +525,6 @@ def checkCommand(cmdline):
 		else:
 			return 401
 
-
-
 def prepareResponse(request):
 
 	debugFunction(1, "prepareResponse: request=" + request)
@@ -521,7 +555,7 @@ def prepareResponse(request):
 			', "CountSource": ' + json.dumps(SourceCount) + \
 			', "ConvertErrorStr": ' + json.dumps(ConvertErrorStr) + \
 			', "ConvertErrorHex": ' + json.dumps(ConvertErrorHex) + \
-			', "ConvertErrorDateTime": ' + json.dumps(ConvertErrorDateTime.strftime("%d.%m.%Y %H:%M:%S")) + \
+			', "ConvertErrorDate": ' + json.dumps(ConvertErrorDate.strftime("%d.%m.%Y %H:%M:%S")) + \
 			', "MaxDiffDate": ' + json.dumps(MaxTimeReadDiffDate.strftime("%d.%m.%Y %H:%M:%S")) + \
 			', "TimebetweenRead": ' + json.dumps(str(TimebetweenRead)) + \
 			', "MaxDiffTimebetweenRead": ' + json.dumps(str(MaxTimeReadDiff)) + \
@@ -548,12 +582,13 @@ def prepareResponse(request):
 def mqtt_on_connect(client, userdata, flags, rc):
 	debugFunction(1, "Connected with result code "+str(rc))
 
-	client.subscribe([(mqttTopic + MQTT_TOPIC_GET, 2),(mqttTopic + MQTT_TOPIC_CMD, 2)])
+	client.subscribe([(mqttTopic + MQTT_TOPIC_GET, 2),(mqttTopic + MQTT_TOPIC_SET, 2), (mqttTopic + MQTT_TOPIC_CMD, 2)])
 
 def mqtt_on_message(client, userdata, msg):
+	global debugLevel, debugHex
 	try:
-		payload = msg.payload.decode().strip('\n')
-		debugFunction(1, "topic: " + msg.topic + " payload: " + payload)
+		payload = msg.payload.decode().strip('\n').lower()
+		debugFunction(2, "mqtt_on_message: topic = " + msg.topic + " payload: " + payload)
 
 		if msg.topic == mqttTopic + MQTT_TOPIC_GET:
 
@@ -563,8 +598,29 @@ def mqtt_on_message(client, userdata, msg):
 		elif msg.topic == mqttTopic + MQTT_TOPIC_CMD:
 			rc=checkCommand(payload);
 
-			send2Network("mqtt:" + ':' + mqttTopic + MQTT_TOPIC_ACK, \
+			send2Network("mqtt:" + mqttTopic + MQTT_TOPIC_ACK, \
 				"Ok" if rc == 200 else str(rc) + ' - Cmd: ' + payload, 2)
+
+		elif msg.topic == mqttTopic + MQTT_TOPIC_SET:
+
+			result=dict(re.findall('(\w+)=([\w.+-]+)&?', payload)) # e.g debugLevel=1&debugTarget=2
+			debugFunction(2, "mqtt_on_message: " + json.dumps(result))
+
+			try:
+				rc=int(result["debuglevel"])
+				if rc >= 0 and rc < 4:
+					debugFunction(0, "mqtt_on_message:  set debugLevel to " + str(rc))
+					debugLevel=rc
+			except:
+				pass
+
+			try:
+				rc=int(result["debughex"])
+				if rc >= 0 and rc < 2:
+					debugHex=rc
+					debugFunction(0, "mqtt_on_message:  set debugHex to " + str(rc))
+			except:
+				pass
 
 	except Exception as e:
 		debugFunction(0, "mqtt_on_message: "+ str(e))
@@ -572,8 +628,8 @@ def mqtt_on_message(client, userdata, msg):
 def MQTTService(mqttHost, mqttPort, mqttTopic, mqttUser, mqttPass):
 	global mqtt_client
 	
-	debugFunction (0, 'Connect MQTT to ' + mqttHost + ' on port ' + str(mqttPort) + ' with Topic ' + ' SSL is ' \
-		+ mqttTopic)
+	debugFunction (0, 'Connect MQTT to ' + mqttHost + ' on port ' + str(mqttPort) + ', SSL is ' + str(usemqttssl) + \
+		', with Topic ' + mqttTopic)
 	try:
 		mqtt_client = mqtt.Client()
 		if usemqttssl:
