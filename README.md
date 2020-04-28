@@ -15,14 +15,12 @@ To test with a standard Webbrowser works ok. To use curl: curl "http://127.0.0.1
 2. mqtt<br>
 Parameters, like ports, TLS or topics, have to be defined in ini-file in section [MQTT]. Topics are case-sensitive<br>
 The Root topics can be also defined in the ini-file. Sub-Topics are<br>
-/Cmd - Send Commands to the Script
-/Ack - Acknoledge /Cmd
-/Get - Retrieve Information from Russound Device
-/Data - Response to a /Get request 
-
-
-If the script es registered  Example: http://127.0.0.1:8080/cmd?action=on&zone=1&source=2
-
+/Cmd - Send Commands to the Script<br>
+/Ack - Acknoledge /Cmd<br>
+/Get - Retrieve Information from Russound Device<br>
+/Data - Response to a /Get request<br>
+<br>
+<br>
 Webbrowser works ok, if you would like to use curl: curl "http://127.0.0.1:8080/cmd?action=on&zone=1&source=2"
 
 action:<br>
