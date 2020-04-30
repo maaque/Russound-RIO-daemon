@@ -19,6 +19,8 @@ The Root topics can be also defined in the ini-file. Sub-Topics are<br>
 /Ack - Acknoledge /Cmd<br>
 /Get - Retrieve Information from Russound Device<br>
 /Data - Response to a /Get request<br>
+/Set - Change some settings on the running proccess like debugLevel=0,1,2
+
 <br>
 <br>
 action:<br>
